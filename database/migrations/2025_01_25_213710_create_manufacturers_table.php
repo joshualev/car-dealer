@@ -13,8 +13,15 @@ return new class extends Migration
     {
         Schema::create('manufacturers', function (Blueprint $table) {
             $table->id();
+            $table->string('name')->unique();
+            $table->text('description');
+            $table->string('country');
             $table->timestamps();
+
+            // Adding an index on name for faster lookups
+            $table->index('name');
         });
+
     }
 
     /**

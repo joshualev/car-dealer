@@ -2,6 +2,7 @@
 
 namespace Database\Factories;
 
+use App\Models\Manufacturer;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -17,7 +18,9 @@ class ManufacturerFactory extends Factory
     public function definition(): array
     {
         return [
-            //
+            'name' => fake()->unique()->company(),
+            'description' => fake()->sentence(),
+            'origin_country' => fake()->country(),
         ];
     }
 }
