@@ -1,7 +1,6 @@
 <x-layout>
     <x-page-heading>Your next Car is waiting</x-page-heading>
 
-
     <section class="pb-4">
         <x-forms.form action="{{ route('search') }}" method="GET" class="mt-6 max-w-xl">
             <x-forms.input :label="false" name="q" value="{{ request('q') }}" placeholder="Search for your next car" />

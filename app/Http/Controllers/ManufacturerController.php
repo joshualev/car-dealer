@@ -13,7 +13,7 @@ class ManufacturerController extends Controller
      */
     public function index()
     {
-        $manufacturers = Manufacturer::all();
+        $manufacturers = Manufacturer::paginate(12);
 
         return view('manufacturers.index', compact('manufacturers'), [
             'manufacturers' => $manufacturers
