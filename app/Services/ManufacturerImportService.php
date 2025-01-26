@@ -58,26 +58,35 @@ class ManufacturerImportService
      */
     public function processRow(array $row): array
     {
-        if (!isset($row[1], $row[2], $row[3])) {
+        // Ensure the row has at least 4 columns: id, name, description, country
+        if (count($row) < 4) {
             throw new InvalidArgumentException('Row data is incomplete.');
         }
 
-        $name = Str::squish($row[1]);
-        $description = Str::squish($row[2]);
-        $country = Str::squish($row[3]);
+        // Assign columns to variables for clarity
+        [$id, $name, $description, $country] = $row;
 
+        // Trim and sanitize input data
+        $name = Str::squish($name);
+        $description = Str::squish($description);
+        $country = Str::squish($country);
+
+        // Validate required fields are not empty
         if (empty($name)) {
             throw new InvalidArgumentException('Name cannot be empty.');
         }
 
+        // Validate 'name' length
         if (Str::length($name) > 255) {
             throw new InvalidArgumentException('Name exceeds maximum length of 255 characters.');
         }
 
+        // Validate 'description' length
         if (Str::length($description) > 255) {
             throw new InvalidArgumentException('Description exceeds maximum length of 255 characters.');
         }
 
+        // Validate 'country' using the ValidCountry rule
         $validCountryRule = new ValidCountry();
         $fails = false;
         $validCountryRule->validate('country', $country, function () use (&$fails) {
@@ -88,10 +97,13 @@ class ManufacturerImportService
             throw new InvalidArgumentException("Invalid country: $country");
         }
 
+        // Use the normalized country name
+        $normalizedCountry = $validCountryRule->getNormalized();
+
         return [
             'name' => $name,
             'description' => $description,
-            'country' => $country,
+            'country' => $normalizedCountry,
             'created_at' => now(),
             'updated_at' => now(),
         ];

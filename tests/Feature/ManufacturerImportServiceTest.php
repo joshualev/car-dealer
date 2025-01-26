@@ -234,3 +234,29 @@ it('ensures transaction rollback on failure', function () {
     expect($result)->toBe(['success' => false, 'error' => 'Invalid country: InvalidCountry'])
                    ->and(Manufacturer::count())->toBe(0);
 });
+
+/**
+ * @test
+ * Imports valid manufacturers correctly with normalized countries.
+ */
+it('imports valid manufacturers correctly with normalized countries', function () {
+    Storage::fake('local');
+
+    $rows = [
+        ['id' => '1', 'name' => 'Mercedes-Benz', 'description' => 'German luxury automaker...', 'country' => 'German'],
+        ['id' => '2', 'name' => 'Chevrolet', 'description' => 'GM\'s mainstream brand...', 'country' => 'nited States'], // Misspelled
+        ['id' => '4', 'name' => 'Hyundai', 'description' => 'South Korean manufacturer...', 'country' => 'South Korean'], // Valid
+    ];
+
+    $csvContent = createCsvContent($rows);
+    $file = UploadedFile::fake()->createWithContent('manufacturers_test.csv', $csvContent);
+    Storage::disk('local')->put('manufacturers_test.csv', $file->getContent());
+
+    $result = $this->service->import(Storage::disk('local')->path('manufacturers_test.csv'));
+
+    expect($result)->toBe(['success' => true, 'message' => 'Import completed successfully.'])
+                   ->and(Manufacturer::count())->toBe(3)
+                   ->and(Manufacturer::find(1)->country)->toBe('Germany') // Normalized
+                   ->and(Manufacturer::find(2)->country)->toBe('United States') // Normalized from 'nited States'
+                   ->and(Manufacturer::find(3)->country)->toBe('South Korea'); // Normalized from 'South Korean'
+});
