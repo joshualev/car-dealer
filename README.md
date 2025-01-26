@@ -62,12 +62,7 @@ npm install
 npm run dev
 ```
 
-Start the server:
+Start the server in another terminal:
 ```bash
 php artisan serve
-```
-
-Run tests:
-```bash
-./vendor/bin/pest
 ```
