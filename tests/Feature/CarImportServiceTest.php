@@ -5,13 +5,13 @@ namespace Tests\Feature;
 use App\Models\Car;
 use App\Models\Manufacturer;
 use App\Services\CarImportService;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
-uses(RefreshDatabase::class)->in('Feature');
-
+/**
+ * Initialize the CarImportService before each test.
+ */
 beforeEach(function () {
     $this->service = app(CarImportService::class);
 });
