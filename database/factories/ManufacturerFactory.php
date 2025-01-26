@@ -20,7 +20,9 @@ class ManufacturerFactory extends Factory
         return [
             'name' => fake()->unique()->company(),
             'description' => fake()->sentence(),
-            'origin_country' => fake()->country(),
+            'country' => fake()->country(),
+            'created_at' => now(),
+            'updated_at' => now(),
         ];
     }
 }

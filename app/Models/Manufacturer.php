@@ -20,7 +20,7 @@ class Manufacturer extends Model
     protected $fillable = [
         'name',
         'description',
-        'origin_country',
+        'country',
     ];
 
     /**
