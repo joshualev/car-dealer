@@ -2,7 +2,7 @@
 
 use App\Rules\ValidCountry;
 
-describe('ValidCountry Rule', function () {
+describe('Country Validation', function () {
     $validate = function ($input) {
         $rule = new ValidCountry();
         $fails = false;

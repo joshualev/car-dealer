@@ -6,21 +6,11 @@ use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
 
-/**
- * Initialize the ManufacturerImportService before each test.
- */
 beforeEach(function () {
     $this->service = app(ManufacturerImportService::class);
 });
 
-/**
- * Helper function to create CSV content.
- *
- * @param array $rows Array of associative arrays representing CSV rows.
- * @return string CSV formatted string.
- */
-function createCsvContent(array $rows): string
-{
+function createCsvContent(array $rows): string {
     if (empty($rows)) {
         return "id,manufacturer,description,country\n";
     }
@@ -30,9 +20,7 @@ function createCsvContent(array $rows): string
 
     foreach ($rows as $row) {
         $escapedRow = array_map(function ($field) {
-            // Escape double quotes by doubling them
             $field = str_replace('"', '""', $field);
-            // Enclose fields containing commas or quotes in double quotes
             if (Str::contains($field, [',', '"'])) {
                 return "\"{$field}\"";
             }
@@ -45,215 +33,240 @@ function createCsvContent(array $rows): string
     return $csv;
 }
 
-/**
- * @test
- * Imports valid data correctly.
- */
-it('imports valid data correctly', function () {
-    Storage::fake('local');
+describe('Manufacturer Import', function () {
 
-    $rows = [
-        ['id' => '1', 'manufacturer' => 'TestCo', 'description' => 'Test description', 'country' => 'Germany'],
-        ['id' => '2', 'manufacturer' => 'AutoMax', 'description' => 'Leading automotive innovations', 'country' => 'United States'],
-        ['id' => '3', 'manufacturer' => 'CarNation', 'description' => 'Affordable family cars', 'country' => 'Japan'],
-    ];
+    describe('Basic Import Functionality', function() {
+        it('imports valid data correctly', function () {
+            Storage::fake('local');
 
-    $csvContent = createCsvContent($rows);
-    $file = UploadedFile::fake()->createWithContent('manufacturers_valid.csv', $csvContent);
-    Storage::disk('local')->put('manufacturers_valid.csv', $file->getContent());
+            // Prepare test data
+            $rows = [
+                ['id' => '1', 'manufacturer' => 'TestCo', 'description' => 'Test description', 'country' => 'Germany'],
+                ['id' => '2', 'manufacturer' => 'AutoMax', 'description' => 'Leading automotive innovations', 'country' => 'United States'],
+                ['id' => '3', 'manufacturer' => 'CarNation', 'description' => 'Affordable family cars', 'country' => 'Japan'],
+            ];
 
-    $result = $this->service->import(Storage::disk('local')->path('manufacturers_valid.csv'));
+            // Create and store the CSV
+            $csvContent = createCsvContent($rows);
+            $file = UploadedFile::fake()->createWithContent('manufacturers_valid.csv', $csvContent);
+            Storage::disk('local')->put('manufacturers_valid.csv', $file->getContent());
 
-    expect($result)->toBe(['success' => true, 'message' => 'Import completed successfully.'])
-                   ->and(Manufacturer::count())->toBe(3)
-                   ->and(Manufacturer::find(1))->name->toBe('TestCo')
-                                                     ->and(Manufacturer::find(2))->country->toBe('United States')
-                                                                                          ->and(Manufacturer::find(3))->country->toBe('Japan');
-});
+            // Perform the import
+            $result = $this->service->import(Storage::disk('local')->path('manufacturers_valid.csv'));
 
-/**
- * @test
- * Rejects invalid countries in the dataset.
- */
-it('rejects invalid countries', function () {
-    Storage::fake('local');
+            // Assert the result
+            expect($result)->toBe([
+                'success' => true,
+                'message' => 'Import completed successfully.'
+            ]);
 
-    $rows = [
-        ['id' => '1', 'manufacturer' => 'TestCo', 'description' => 'Test description', 'country' => 'InvalidCountry'],
-        ['id' => '2', 'manufacturer' => 'AutoMax', 'description' => 'Leading automotive innovations', 'country' => 'Germany'],
-    ];
+            // Assert the number of manufacturers
+            expect(Manufacturer::count())->toBe(3);
 
-    $csvContent = createCsvContent($rows);
-    $file = UploadedFile::fake()->createWithContent('manufacturers_invalid_country.csv', $csvContent);
-    Storage::disk('local')->put('manufacturers_invalid_country.csv', $file->getContent());
+            // Assert individual manufacturer details
+            $firstManufacturer = Manufacturer::find(1);
+            expect($firstManufacturer->name)->toBe('TestCo');
 
-    $result = $this->service->import(Storage::disk('local')->path('manufacturers_invalid_country.csv'));
+            $secondManufacturer = Manufacturer::find(2);
+            expect($secondManufacturer->country)->toBe('United States');
 
-    expect($result)->toBe(['success' => false, 'error' => 'Invalid country: InvalidCountry'])
-                   ->and(Manufacturer::count())->toBe(0);
-});
+            $thirdManufacturer = Manufacturer::find(3);
+            expect($thirdManufacturer->country)->toBe('Japan');
+        });
 
-/**
- * @test
- * Rejects duplicate manufacturer names.
- */
-it('rejects duplicate manufacturers', function () {
-    Storage::fake('local');
+        it('handles empty CSV files gracefully', function () {
+            Storage::fake('local');
 
-    // Create an existing manufacturer with 'country'
-    Manufacturer::create([
-        'name' => 'ExistingCo',
-        'description' => 'Existing description',
-        'country' => 'France',
-    ]);
+            // Create empty CSV
+            $csvContent = "id,manufacturer,description,country\n";
+            $file = UploadedFile::fake()->createWithContent('manufacturers_empty.csv', $csvContent);
+            Storage::disk('local')->put('manufacturers_empty.csv', $file->getContent());
 
-    $rows = [
-        ['id' => '1', 'manufacturer' => 'ExistingCo', 'description' => 'Test description', 'country' => 'Germany'], // Duplicate
-        ['id' => '2', 'manufacturer' => 'AutoMax', 'description' => 'Leading automotive innovations', 'country' => 'United States'],
-    ];
+            // Perform the import
+            $result = $this->service->import(Storage::disk('local')->path('manufacturers_empty.csv'));
 
-    $csvContent = createCsvContent($rows);
-    $file = UploadedFile::fake()->createWithContent('manufacturers_duplicate.csv', $csvContent);
-    Storage::disk('local')->put('manufacturers_duplicate.csv', $file->getContent());
+            // Assert results
+            expect($result)->toBe([
+                'success' => true,
+                'message' => 'Import completed successfully.'
+            ]);
+            expect(Manufacturer::count())->toBe(0);
+        });
+    });
 
-    $result = $this->service->import(Storage::disk('local')->path('manufacturers_duplicate.csv'));
+    describe('Validation Rules', function() {
+        it('rejects invalid countries', function () {
+            Storage::fake('local');
 
-    expect($result)->toBe(['success' => false, 'error' => 'Import failed due to duplicate manufacturers in the dataset.'])
-                   ->and(Manufacturer::count())->toBe(1); // Only ExistingCo exists
-});
+            // Prepare test data with invalid country
+            $rows = [
+                ['id' => '1', 'manufacturer' => 'TestCo', 'description' => 'Test description', 'country' => 'InvalidCountry'],
+                ['id' => '2', 'manufacturer' => 'AutoMax', 'description' => 'Leading automotive innovations', 'country' => 'Germany'],
+            ];
 
-/**
- * @test
- * Handles empty CSV files gracefully.
- */
-it('handles empty CSV files gracefully', function () {
-    Storage::fake('local');
+            // Create and store the CSV
+            $csvContent = createCsvContent($rows);
+            $file = UploadedFile::fake()->createWithContent('manufacturers_invalid_country.csv', $csvContent);
+            Storage::disk('local')->put('manufacturers_invalid_country.csv', $file->getContent());
 
-    $csvContent = "id,manufacturer,description,country\n"; // Only headers
-    $file = UploadedFile::fake()->createWithContent('manufacturers_empty.csv', $csvContent);
-    Storage::disk('local')->put('manufacturers_empty.csv', $file->getContent());
+            // Perform the import
+            $result = $this->service->import(Storage::disk('local')->path('manufacturers_invalid_country.csv'));
 
-    $result = $this->service->import(Storage::disk('local')->path('manufacturers_empty.csv'));
+            // Assert results
+            expect($result)->toBe([
+                'success' => false,
+                'error' => 'Invalid country: InvalidCountry'
+            ]);
+            expect(Manufacturer::count())->toBe(0);
+        });
 
-    expect($result)->toBe(['success' => true, 'message' => 'Import completed successfully.'])
-                   ->and(Manufacturer::count())->toBe(0);
-});
+        it('rejects incomplete rows', function () {
+            Storage::fake('local');
 
-/**
- * @test
- * Rejects CSV files with incomplete rows.
- */
-it('rejects CSV files with incomplete rows', function () {
-    Storage::fake('local');
+            // Prepare test data with missing country
+            $rows = [
+                ['id' => '1', 'manufacturer' => 'TestCo', 'description' => 'Test description'],
+                ['id' => '2', 'manufacturer' => 'AutoMax', 'description' => 'Leading automotive innovations', 'country' => 'United States'],
+            ];
 
-    $rows = [
-        ['id' => '1', 'manufacturer' => 'TestCo', 'description' => 'Test description'], // Missing 'country'
-        ['id' => '2', 'manufacturer' => 'AutoMax', 'description' => 'Leading automotive innovations', 'country' => 'United States'],
-    ];
+            // Create and store the CSV
+            $csvContent = createCsvContent($rows);
+            $file = UploadedFile::fake()->createWithContent('manufacturers_incomplete.csv', $csvContent);
+            Storage::disk('local')->put('manufacturers_incomplete.csv', $file->getContent());
 
-    $csvContent = createCsvContent($rows);
-    $file = UploadedFile::fake()->createWithContent('manufacturers_incomplete.csv', $csvContent);
-    Storage::disk('local')->put('manufacturers_incomplete.csv', $file->getContent());
+            // Perform the import
+            $result = $this->service->import(Storage::disk('local')->path('manufacturers_incomplete.csv'));
 
-    $result = $this->service->import(Storage::disk('local')->path('manufacturers_incomplete.csv'));
+            // Assert results
+            expect($result)->toBe([
+                'success' => false,
+                'error' => 'Row data is incomplete.'
+            ]);
+            expect(Manufacturer::count())->toBe(0);
+        });
 
-    expect($result)->toBe(['success' => false, 'error' => 'Row data is incomplete.'])
-                   ->and(Manufacturer::count())->toBe(0);
-});
+        it('rejects rows with invalid data types', function () {
+            Storage::fake('local');
 
-/**
- * @test
- * Rejects duplicate entries within the same CSV file.
- */
-it('rejects duplicate entries within the same CSV file', function () {
-    Storage::fake('local');
+            // Create test data with invalid name length
+            $longName = Str::repeat('A', 256);
+            $rows = [
+                ['id' => '1', 'manufacturer' => $longName, 'description' => 'Test description', 'country' => 'Germany'],
+                ['id' => '2', 'manufacturer' => 'AutoMax', 'description' => 'Leading automotive innovations', 'country' => 'United States'],
+            ];
 
-    $rows = [
-        ['id' => '1', 'manufacturer' => 'TestCo', 'description' => 'Test description', 'country' => 'Germany'],
-        ['id' => '2', 'manufacturer' => 'TestCo', 'description' => 'Another description', 'country' => 'France'], // Duplicate within CSV
-        ['id' => '3', 'manufacturer' => 'AutoMax', 'description' => 'Leading automotive innovations', 'country' => 'United States'],
-    ];
+            // Create and store the CSV
+            $csvContent = createCsvContent($rows);
+            $file = UploadedFile::fake()->createWithContent('manufacturers_invalid_types.csv', $csvContent);
+            Storage::disk('local')->put('manufacturers_invalid_types.csv', $file->getContent());
 
-    $csvContent = createCsvContent($rows);
-    $file = UploadedFile::fake()->createWithContent('manufacturers_duplicate_within.csv', $csvContent);
-    Storage::disk('local')->put('manufacturers_duplicate_within.csv', $file->getContent());
+            // Perform the import
+            $result = $this->service->import(Storage::disk('local')->path('manufacturers_invalid_types.csv'));
 
-    $result = $this->service->import(Storage::disk('local')->path('manufacturers_duplicate_within.csv'));
+            // Assert results
+            expect($result)->toBe([
+                'success' => false,
+                'error' => 'Name exceeds maximum length of 255 characters.'
+            ]);
+            expect(Manufacturer::count())->toBe(0);
+        });
+    });
 
-    expect($result)->toBe(['success' => false, 'error' => 'Import failed due to duplicate manufacturers in the dataset.'])
-                   ->and(Manufacturer::count())->toBe(0);
-});
+    describe('Duplicate Handling', function() {
+        it('rejects duplicate manufacturers', function () {
+            Storage::fake('local');
 
-/**
- * @test
- * Rejects rows with invalid data types.
- */
-it('rejects rows with invalid data types', function () {
-    Storage::fake('local');
+            // Create existing manufacturer
+            Manufacturer::create([
+                'name' => 'ExistingCo',
+                'description' => 'Existing description',
+                'country' => 'France',
+            ]);
 
-    // Create a `name` that exceeds 255 characters
-    $longName = Str::repeat('A', 256); // 256 characters
+            // Prepare test data with duplicate manufacturer
+            $rows = [
+                ['id' => '1', 'manufacturer' => 'ExistingCo', 'description' => 'Test description', 'country' => 'Germany'],
+                ['id' => '2', 'manufacturer' => 'AutoMax', 'description' => 'Leading automotive innovations', 'country' => 'United States'],
+            ];
 
-    $rows = [
-        ['id' => '1', 'manufacturer' => $longName, 'description' => 'Test description', 'country' => 'Germany'], // Invalid
-        ['id' => '2', 'manufacturer' => 'AutoMax', 'description' => 'Leading automotive innovations', 'country' => 'United States'],
-    ];
+            // Create and store the CSV
+            $csvContent = createCsvContent($rows);
+            $file = UploadedFile::fake()->createWithContent('manufacturers_duplicate.csv', $csvContent);
+            Storage::disk('local')->put('manufacturers_duplicate.csv', $file->getContent());
 
-    $csvContent = createCsvContent($rows);
-    $file = UploadedFile::fake()->createWithContent('manufacturers_invalid_types.csv', $csvContent);
-    Storage::disk('local')->put('manufacturers_invalid_types.csv', $file->getContent());
+            // Perform the import
+            $result = $this->service->import(Storage::disk('local')->path('manufacturers_duplicate.csv'));
 
-    $result = $this->service->import(Storage::disk('local')->path('manufacturers_invalid_types.csv'));
+            // Assert results
+            expect($result)->toBe([
+                'success' => false,
+                'error' => 'Import failed due to duplicate manufacturers in the dataset.'
+            ]);
+            expect(Manufacturer::count())->toBe(1);
+        });
 
-    expect($result)->toBe(['success' => false, 'error' => 'Name exceeds maximum length of 255 characters.'])
-                   ->and(Manufacturer::count())->toBe(0);
-});
+        it('rejects duplicate entries within the same CSV file', function () {
+            Storage::fake('local');
 
-/**
- * @test
- * Ensures transaction rollback on failure.
- */
-it('ensures transaction rollback on failure', function () {
-    Storage::fake('local');
+            // Prepare test data with internal duplicate
+            $rows = [
+                ['id' => '1', 'manufacturer' => 'TestCo', 'description' => 'Test description', 'country' => 'Germany'],
+                ['id' => '2', 'manufacturer' => 'TestCo', 'description' => 'Another description', 'country' => 'France'],
+                ['id' => '3', 'manufacturer' => 'AutoMax', 'description' => 'Leading automotive innovations', 'country' => 'United States'],
+            ];
 
-    $rows = [
-        ['id' => '1', 'manufacturer' => 'TestCo', 'description' => 'Test description', 'country' => 'Germany'],
-        ['id' => '2', 'manufacturer' => 'AutoMax', 'description' => 'Leading automotive innovations', 'country' => 'InvalidCountry'], // Invalid
-        ['id' => '3', 'manufacturer' => 'CarNation', 'description' => 'Affordable family cars', 'country' => 'Japan'],
-    ];
+            // Create and store the CSV
+            $csvContent = createCsvContent($rows);
+            $file = UploadedFile::fake()->createWithContent('manufacturers_duplicate_within.csv', $csvContent);
+            Storage::disk('local')->put('manufacturers_duplicate_within.csv', $file->getContent());
 
-    $csvContent = createCsvContent($rows);
-    $file = UploadedFile::fake()->createWithContent('manufacturers_transaction_fail.csv', $csvContent);
-    Storage::disk('local')->put('manufacturers_transaction_fail.csv', $file->getContent());
+            // Perform the import
+            $result = $this->service->import(Storage::disk('local')->path('manufacturers_duplicate_within.csv'));
 
-    $result = $this->service->import(Storage::disk('local')->path('manufacturers_transaction_fail.csv'));
+            // Assert results
+            expect($result)->toBe([
+                'success' => false,
+                'error' => 'Import failed due to duplicate manufacturers in the dataset.'
+            ]);
+            expect(Manufacturer::count())->toBe(0);
+        });
+    });
 
-    expect($result)->toBe(['success' => false, 'error' => 'Invalid country: InvalidCountry'])
-                   ->and(Manufacturer::count())->toBe(0);
-});
+    describe('Country Normalization', function() {
+        it('normalizes country names correctly', function () {
+            Storage::fake('local');
 
-/**
- * @test
- * Imports valid manufacturers correctly with normalized countries.
- */
-it('imports valid manufacturers correctly with normalized countries', function () {
-    Storage::fake('local');
+            // Prepare test data with various country formats
+            $rows = [
+                ['id' => '1', 'name' => 'Mercedes-Benz', 'description' => 'German luxury automaker...', 'country' => 'German'],
+                ['id' => '2', 'name' => 'Chevrolet', 'description' => "GM's mainstream brand...", 'country' => 'nited States'],
+                ['id' => '4', 'name' => 'Hyundai', 'description' => 'South Korean manufacturer...', 'country' => 'South Korean'],
+            ];
 
-    $rows = [
-        ['id' => '1', 'name' => 'Mercedes-Benz', 'description' => 'German luxury automaker...', 'country' => 'German'],
-        ['id' => '2', 'name' => 'Chevrolet', 'description' => 'GM\'s mainstream brand...', 'country' => 'nited States'], // Misspelled
-        ['id' => '4', 'name' => 'Hyundai', 'description' => 'South Korean manufacturer...', 'country' => 'South Korean'], // Valid
-    ];
+            // Create and store the CSV
+            $csvContent = createCsvContent($rows);
+            $file = UploadedFile::fake()->createWithContent('manufacturers_test.csv', $csvContent);
+            Storage::disk('local')->put('manufacturers_test.csv', $file->getContent());
 
-    $csvContent = createCsvContent($rows);
-    $file = UploadedFile::fake()->createWithContent('manufacturers_test.csv', $csvContent);
-    Storage::disk('local')->put('manufacturers_test.csv', $file->getContent());
+            // Perform the import
+            $result = $this->service->import(Storage::disk('local')->path('manufacturers_test.csv'));
 
-    $result = $this->service->import(Storage::disk('local')->path('manufacturers_test.csv'));
+            // Assert import success
+            expect($result)->toBe([
+                'success' => true,
+                'message' => 'Import completed successfully.'
+            ]);
+            expect(Manufacturer::count())->toBe(3);
 
-    expect($result)->toBe(['success' => true, 'message' => 'Import completed successfully.'])
-                   ->and(Manufacturer::count())->toBe(3)
-                   ->and(Manufacturer::find(1)->country)->toBe('Germany') // Normalized
-                   ->and(Manufacturer::find(2)->country)->toBe('United States') // Normalized from 'nited States'
-                   ->and(Manufacturer::find(3)->country)->toBe('South Korea'); // Normalized from 'South Korean'
+            // Assert normalized country names
+            $firstManufacturer = Manufacturer::find(1);
+            expect($firstManufacturer->country)->toBe('Germany');
+
+            $secondManufacturer = Manufacturer::find(2);
+            expect($secondManufacturer->country)->toBe('United States');
+
+            $thirdManufacturer = Manufacturer::find(3);
+            expect($thirdManufacturer->country)->toBe('South Korea');
+        });
+    });
 });

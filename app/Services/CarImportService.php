@@ -71,7 +71,7 @@ class CarImportService
         // Destructure the row for clarity
         [$id, $manufacturerName, $model, $year, $colour] = $row;
 
-        // Trim and sanitize input data
+        // Trim input data
         $manufacturerName = Str::squish($manufacturerName);
         $model = Str::squish($model);
         $colour = Str::squish($colour);
