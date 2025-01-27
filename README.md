@@ -56,13 +56,12 @@ id,manufacturer,model,year,colour
 
 ## Development
 
-Make sure you bundle assets:
+Install npm dependencies and run build:
 ```bash
-npm install
-npm run dev
+npm install && npm run build
 ```
 
-Start the server in another terminal:
+Start the server:
 ```bash
 php artisan serve
 ```
